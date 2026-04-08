@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -55,22 +56,12 @@ async def startup_event():
     model_loaded = load_ml_model() is not None
 
 @app.get("/")
-@app.get("/index")
 def root():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/dashboard", status_code=302)
+    return {"message": "Healthcare CTI Platform", "version": "2.0.0", "dashboard": "/dashboard"}
 
-@app.get("/dashboard", tags=["Dashboard"])
-@app.get("/dashboard.html", include_in_schema=False)
+@app.get("/dashboard")
 def dashboard():
-    try:
-        with open("dashboard/index.html", "r", encoding="utf-8") as f:
-            content = f.read()
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse(content=content, media_type="text/html")
-    except Exception as e:
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse(content=f"<h1>Dashboard not found: {e}</h1>", media_type="text/html")
+    return PlainTextResponse("<h1>Test</h1>", media_type="text/html")
 
 @app.get("/favicon.ico")
 def favicon():
