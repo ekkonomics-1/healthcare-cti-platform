@@ -195,6 +195,59 @@ def trigger_collect():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/enrich/vt")
+def trigger_vt_enrich():
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from sources.virustotal import enrich_all_iocs
+        result = enrich_all_iocs()
+        return {"status": "success", "enriched": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cve/openemr", response_model=dict)
+def get_openemr_cves(limit: int = 10):
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from sources.nvd import get_recent_cves
+        cves = get_recent_cves(limit)
+        return {"cves": cves, "count": len(cves)}
+    except Exception as e:
+        return {"cves": [], "error": str(e)}
+
+@app.get("/health/threats")
+def get_healthcare_threats(limit: int = 50):
+    conn = sqlite3.connect(DATABASE_PATH)
+    c = conn.cursor()
+    c.execute("""SELECT ioc, ioc_type, source, tags, confidence, is_healthcare, malware_family 
+                FROM iocs WHERE is_healthcare = 1 OR is_c2 = 1 OR is_medical_device = 1
+                ORDER BY confidence DESC LIMIT ?""", (limit,))
+    rows = c.fetchall()
+    conn.close()
+    threats = []
+    for row in rows:
+        threats.append({
+            "ioc": row[0], "type": row[1], "source": row[2], 
+            "tags": row[3], "confidence": row[4], 
+            "is_healthcare": row[5], "malware_family": row[6]
+        })
+    return {"threats": threats, "count": len(threats)}
+
+@app.get("/mitre/healthcare")
+def get_mitre_healthcare():
+    mitre_mapping = {
+        "T1486": {"name": " Ransomware", "tactic": "Impact", "healthcare_focus": "Critical"},
+        "T1048": {"name": "Exfiltration Over Alternative Protocol", "tactic": "Exfiltration", "healthcare_focus": "High"},
+        "T1041": {"name": "Exfiltration Over C2 Channel", "tactic": "Exfiltration", "healthcare_focus": "High"},
+        "T1059": {"name": "Command and Scripting Interpreter", "tactic": "Execution", "healthcare_focus": "Medium"},
+        "T1204": {"name": "User Execution", "tactic": "Execution", "healthcare_focus": "High"},
+        "T1566": {"name": "Phishing", "tactic": "Initial Access", "healthcare_focus": "High"},
+        "T1133": {"name": "External Remote Services", "tactic": "Initial Access", "healthcare_focus": "Medium"},
+        "T1005": {"name": "Data from Local System", "tactic": "Collection", "healthcare_focus": "Critical"},
+        "T1042": {"name": "Link Targeting", "tactic": "Command And Control", "healthcare_focus": "Medium"}
+    }
+    return {"mitre_healthcare": mitre_mapping, "source": "MITRE ATT&CK for Healthcare"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host=API_HOST, port=API_PORT)

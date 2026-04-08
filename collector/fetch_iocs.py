@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import requests
 import sqlite3
 import json
@@ -18,7 +22,34 @@ def init_db():
                   last_seen TEXT,
                   confidence INTEGER,
                   is_healthcare INTEGER DEFAULT 0,
-                  is_c2 INTEGER DEFAULT 0)''')
+                  is_c2 INTEGER DEFAULT 0,
+                  vt_score INTEGER DEFAULT 0,
+                  vt_malicious INTEGER DEFAULT 0,
+                  vt_suspicious INTEGER DEFAULT 0,
+                  malware_family TEXT,
+                  is_medical_device INTEGER DEFAULT 0)''')
+    
+    try:
+        c.execute("ALTER TABLE iocs ADD COLUMN vt_score INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE iocs ADD COLUMN vt_malicious INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE iocs ADD COLUMN vt_suspicious INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE iocs ADD COLUMN malware_family TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE iocs ADD COLUMN is_medical_device INTEGER DEFAULT 0")
+    except:
+        pass
+    
     conn.commit()
     return conn
 
@@ -88,33 +119,61 @@ def fetch_feodo():
 
 def fetch_urlhaus():
     try:
-        response = requests.get(URLHAUS_URL, timeout=30)
+        response = requests.get(URLHAUS_URL, timeout=60)
         if response.status_code == 200:
             data = response.json()
             iocs = []
-            for entry in data.get("urls", [])[:100]:
+            url_count = 0
+            for entry in data.get("urls", [])[:500]:
                 url = entry.get("url")
                 if url:
+                    threat = entry.get("threat", "malware_download")
+                    confidence = 70 if threat == "malware_download" else 50
+                    
                     iocs.append({
                         "ioc": url,
                         "type": "url",
                         "source": "URLhaus",
                         "tags": entry.get("tags", []),
-                        "confidence": entry.get("threat", 50)
+                        "confidence": confidence
                     })
+                    url_count += 1
             print(f"Fetched {len(iocs)} IOCs from URLhaus")
             return iocs
     except Exception as e:
         print(f"URLhaus fetch error: {e}")
     return []
 
-def is_healthcare_related(tags):
+def is_healthcare_related(tags, ioc_value=""):
     healthcare_keywords = ["healthcare", "medical", "hospital", "ransomware", "hl7", 
-                        "dicom", "emr", "ehr", "pharma", "OpenEMR", "med"]
+                        "dicom", "emr", "ehr", "pharma", "OpenEMR", "med", "fhir", 
+                        "medical", "patient", "clinical"]
+    
+    medical_device_keywords = ["iot", "medical device", "diagnostic", "imaging", "scanner", "pacs", "ris"]
+    
     if not tags:
-        return False
+        tags = []
     tags_lower = [str(t).lower() for t in tags]
-    return any(kw in " ".join(tags_lower) for kw in healthcare_keywords)
+    tag_text = " ".join(tags_lower)
+    
+    ioc_lower = str(ioc_value).lower()
+    
+    for kw in healthcare_keywords:
+        if kw in tag_text or kw in ioc_lower:
+            return True
+    
+    for kw in medical_device_keywords:
+        if kw in ioc_lower:
+            return True
+    
+    return False
+
+def is_medical_device(ioc_value):
+    device_patterns = ["pacs", "ris", "imaging", "scanner", "mri", "ct scan", "ultrasound",
+                   "diagnostic", "monitore", "defibrill", "pacemaker", "insulin pump"]
+    
+    ioc_lower = str(ioc_value).lower()
+    return any(p in ioc_lower for p in device_patterns)
 
 def collect_all_iocs():
     conn = init_db()
@@ -127,12 +186,10 @@ def collect_all_iocs():
     all_iocs.extend(fetch_urlhaus())
     
     for ioc_data in all_iocs:
-        is_healthcare = 1 if is_healthcare_related(ioc_data.get("tags")) else 0
+        ioc_value = ioc_data.get("ioc", "")
+        is_healthcare = 1 if is_healthcare_related(ioc_data.get("tags"), ioc_value) else 0
         is_c2 = 1 if "c2" in str(ioc_data.get("tags")).lower() else 0
-        
-        ioc_entry = ioc_data.copy()
-        ioc_entry["is_healthcare"] = is_healthcare
-        ioc_entry["is_c2"] = is_c2
+        is_med_device = 1 if is_medical_device(ioc_value) else 0
         
         save_ioc(conn, ioc_data["ioc"], ioc_data["type"], ioc_data["source"],
                ioc_data.get("tags"), ioc_data.get("confidence", 50))
