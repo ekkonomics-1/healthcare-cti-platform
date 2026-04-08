@@ -55,8 +55,10 @@ async def startup_event():
     model_loaded = load_ml_model() is not None
 
 @app.get("/")
+@app.get("/index")
 def root():
-    return {"message": "Healthcare CTI Scoring API", "version": "1.0.0"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 @app.get("/dashboard")
 @app.get("/dashboard.html")
