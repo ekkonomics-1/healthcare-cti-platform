@@ -88,7 +88,8 @@
         </div>
         <div class="nav-right">
             <div class="clock" id="clock">--:--:--</div>
-            <div class="status-pill"><div class="pulse-dot"></div>System Online</div>
+            <div class="status-pill"><div class="pulse-dot"></div><span id="collector-status">Auto: 30min</span></div>
+            <div class="status-pill" style="margin-left:8px"><div class="pulse-dot"></div>System Online</div>
         </div>
     </nav>
 
@@ -257,22 +258,66 @@ function refreshAll() {
 }
 
 function runCollector() {
+    var btn = document.getElementById('btnCollector');
+    btn.textContent = 'Running...';
+    btn.disabled = true;
+    
     fetch(API_BASE + '/collect', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            alert('Collector: ' + d.collected + ' IOCs collected');
+            var msg = '=== COLLECTOR RESULTS ===\n\n';
+            msg += 'Total Found: ' + (d.total_found || 0) + '\n';
+            msg += 'New IOCs: ' + (d.total_new || 0) + '\n';
+            msg += 'Database Total: ' + (d.database_total || 0) + '\n\n';
+            msg += '=== BY SOURCE ===\n';
+            
+            var details = d.details || {};
+            msg += 'OTX: ' + (details.otx?.found || 0) + ' found';
+            if (details.otx?.errors) msg += ' [ERROR: ' + details.otx.errors + ']';
+            msg += '\n';
+            
+            msg += 'Feodo: ' + (details.feodo?.found || 0) + ' found';
+            if (details.feodo?.errors) msg += ' [ERROR: ' + details.feodo.errors + ']';
+            msg += '\n';
+            
+            msg += 'URLhaus: ' + (details.urlhaus?.found || 0) + ' found';
+            if (details.urlhaus?.errors) msg += ' [ERROR: ' + details.urlhaus.errors + ']';
+            msg += '\n';
+            
+            alert(msg);
+            btn.textContent = 'Run Collector';
+            btn.disabled = false;
             refreshAll();
         })
         .catch(function(e) {
             alert('Error: ' + e);
+            btn.textContent = 'Run Collector';
+            btn.disabled = false;
         });
+}
+
+function updateCollectorStatus() {
+    fetch(API_BASE + '/collect/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var statusEl = document.getElementById('collector-status');
+            if (statusEl) {
+                var statusText = d.collector_running ? 'Running...' : 'Next in ' + d.next_run_in_seconds + 's';
+                statusEl.textContent = statusText;
+            }
+        })
+        .catch(function() {});
 }
 
 document.getElementById('btnRefresh').addEventListener('click', refreshAll);
 document.getElementById('btnCollector').addEventListener('click', runCollector);
 
 refreshAll();
-setInterval(refreshAll, 30000);
+setInterval(function() {
+    refreshAll();
+    updateCollectorStatus();
+}, 30000);
+updateCollectorStatus();
 </script>
 </body>
 </html>

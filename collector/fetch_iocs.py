@@ -177,13 +177,39 @@ def is_medical_device(ioc_value):
 
 def collect_all_iocs():
     conn = init_db()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM iocs")
+    db_before = c.fetchone()[0] or 0
+    
+    stats = {
+        "otx": {"found": 0, "new": 0, "errors": None},
+        "feodo": {"found": 0, "new": 0, "errors": None},
+        "urlhaus": {"found": 0, "new": 0, "errors": None}
+    }
     
     all_iocs = []
-    all_iocs.extend(fetch_otx_pulses())
+    try:
+        otx = fetch_otx_pulses()
+        stats["otx"]["found"] = len(otx)
+        all_iocs.extend(otx)
+    except Exception as e:
+        stats["otx"]["errors"] = str(e)
     time.sleep(2)
-    all_iocs.extend(fetch_feodo())
+    
+    try:
+        feodo = fetch_feodo()
+        stats["feodo"]["found"] = len(feodo)
+        all_iocs.extend(feodo)
+    except Exception as e:
+        stats["feodo"]["errors"] = str(e)
     time.sleep(2)
-    all_iocs.extend(fetch_urlhaus())
+    
+    try:
+        urlhaus = fetch_urlhaus()
+        stats["urlhaus"]["found"] = len(urlhaus)
+        all_iocs.extend(urlhaus)
+    except Exception as e:
+        stats["urlhaus"]["errors"] = str(e)
     
     for ioc_data in all_iocs:
         ioc_value = ioc_data.get("ioc", "")
@@ -194,9 +220,20 @@ def collect_all_iocs():
         save_ioc(conn, ioc_data["ioc"], ioc_data["type"], ioc_data["source"],
                ioc_data.get("tags"), ioc_data.get("confidence", 50))
     
+    c.execute("SELECT COUNT(*) FROM iocs")
+    db_after = c.fetchone()[0] or 0
     conn.close()
-    print(f"Total IOCs collected: {len(all_iocs)}")
-    return all_iocs
+    
+    result = {
+        "total_found": len(all_iocs),
+        "total_new": db_after - db_before,
+        "database_total": db_after,
+        "details": stats
+    }
+    
+    print(f"Total IOCs collected: {len(all_iocs)}, New: {db_after - db_before}")
+    return result
 
 if __name__ == "__main__":
-    collect_all_iocs()
+    result = collect_all_iocs()
+    print(json.dumps(result, indent=2))

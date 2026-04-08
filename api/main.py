@@ -50,10 +50,38 @@ class KPIResponse(BaseModel):
     healthcare_related: int
     avg_confidence: float
 
+import threading
+import time
+import asyncio
+
+COLLECTOR_INTERVAL_SECONDS = 1800  # 30 minutes
+
+collector_running = False
+last_collector_run = None
+
+def background_collector():
+    global collector_running, last_collector_run
+    while True:
+        try:
+            collector_running = True
+            print("Auto-collector: Starting...")
+            result = collect_all_iocs()
+            last_collector_run = datetime.now().isoformat()
+            print(f"Auto-collector: Done. Found {result.get('total_found', 0)}, New: {result.get('total_new', 0)}")
+        except Exception as e:
+            print(f"Auto-collector error: {e}")
+        finally:
+            collector_running = False
+        time.sleep(COLLECTOR_INTERVAL_SECONDS)
+
 @app.on_event("startup")
 async def startup_event():
     global model_loaded
     model_loaded = load_ml_model() is not None
+    
+    collector_thread = threading.Thread(target=background_collector, daemon=True)
+    collector_thread.start()
+    print(f"Auto-collector started (runs every {COLLECTOR_INTERVAL_SECONDS} seconds)")
 
 @app.get("/")
 def root():
@@ -190,10 +218,25 @@ def get_kpis():
 @app.post("/collect")
 def trigger_collect():
     try:
-        iocs = collect_all_iocs()
-        return {"status": "success", "collected": len(iocs)}
+        result = collect_all_iocs()
+        return {
+            "status": "success",
+            "total_found": result.get("total_found", 0),
+            "total_new": result.get("total_new", 0),
+            "database_total": result.get("database_total", 0),
+            "details": result.get("details", {})
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/collect/status")
+def get_collect_status():
+    return {
+        "collector_running": collector_running,
+        "last_run": last_collector_run,
+        "next_run_in_seconds": COLLECTOR_INTERVAL_SECONDS,
+        "interval_minutes": COLLECTOR_INTERVAL_SECONDS // 60
+    }
 
 @app.post("/enrich/vt")
 def trigger_vt_enrich():
