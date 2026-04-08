@@ -59,10 +59,12 @@ def root():
     return {"message": "Healthcare CTI Scoring API", "version": "1.0.0"}
 
 @app.get("/dashboard")
+@app.get("/dashboard.html")
 def dashboard():
     try:
-        with open("dashboard/index.html", "r") as f:
-            return f.read()
+        with open("dashboard/index.html", "r", encoding="utf-8") as f:
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(f.read())
     except Exception as e:
         return f"Dashboard not found: {e}"
 
