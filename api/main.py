@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, PlainTextResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -61,7 +61,12 @@ def root():
 
 @app.get("/dashboard")
 def dashboard():
-    return PlainTextResponse("<h1>Test</h1>", media_type="text/html")
+    try:
+        with open("dashboard/index.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(content, media_type="text/html")
+    except Exception as e:
+        return Response(f"Error loading dashboard: {e}", media_type="text/plain", status_code=500)
 
 @app.get("/favicon.ico")
 def favicon():
