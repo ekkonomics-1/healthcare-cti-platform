@@ -49,11 +49,12 @@
         .charts-row { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; margin-bottom: 28px; }
         .panel { background: var(--bg-glass); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
         .panel-head { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .panel-title { display: flex; align-items: center; gap: 10px; }
         .panel-title-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
         .panel-title h3 { font-size: 13px; color: var(--text-bright); text-transform: uppercase; }
         .panel-tag { font-size: 10px; color: var(--text-dim); text-transform: uppercase; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); }
         .panel-body { padding: 24px; }
-        .chart-wrap { height: 240px; }
+        .chart-wrap { height: 240px; display: flex; align-items: center; justify-content: center; }
         .table-panel { background: var(--bg-glass); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
         th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-dim); padding: 14px 20px; text-align: left; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2); }
@@ -95,7 +96,7 @@
         <div class="page-header">
             <div class="page-title">
                 <h2>Threat <span>Intelligence</span> Dashboard</h2>
-                <p>Real-time IOC monitoring & CVE tracking for Healthcare</p>
+                <p>Real-time IOC monitoring and CVE tracking for Healthcare</p>
             </div>
             <div class="header-controls">
                 <button class="btn" id="btnRefresh" type="button">Refresh</button>
@@ -112,7 +113,7 @@
 
         <div class="charts-row">
             <div class="panel">
-                <div class="panel-head"><div class="panel-title"><div class="panel-title-dot"></div><h3>Threat Distribution</h3></div><span class="panel-tag">By severity</span></div>
+                <div class="panel-head"><div class="panel-title"><div class="panel-title-dot"></div><h3>Threat Distribution</h3></div><span class="panel-tag" id="dist-tag">Loading...</span></div>
                 <div class="panel-body"><div class="chart-wrap"><canvas id="distChart"></canvas></div></div>
             </div>
             <div class="panel">
@@ -143,6 +144,11 @@ var API_BASE = window.location.origin;
 var distChart = null;
 var confChart = null;
 
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function updateClock() {
     var now = new Date();
     var h = String(now.getUTCHours()).padStart(2,'0');
@@ -154,7 +160,10 @@ setInterval(updateClock, 1000);
 updateClock();
 
 function fetchJSON(url) {
-    return fetch(url).then(function(r) { return r.json(); });
+    return fetch(url).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    });
 }
 
 function updateKPIs(data) {
@@ -170,13 +179,15 @@ function updateCharts(data) {
     if (distChart) distChart.destroy();
     if (confChart) confChart.destroy();
     
+    document.getElementById('dist-tag').textContent = (data.critical_count||0) + '/' + (data.high_count||0) + '/' + (data.medium_count||0);
+    
     distChart = new Chart(ctx1, {
         type: 'doughnut',
         data: {
             labels: ['Critical', 'High', 'Medium', 'Low'],
             datasets: [{ data: [data.critical_count||0, data.high_count||0, data.medium_count||0, data.low_count||0], backgroundColor: ['#ff3055','#ffaa00','#00c87a','#3d5060'], borderWidth: 0 }]
         },
-        options: { responsive: true, cutout: '68%' }
+        options: { responsive: true, maintainAspectRatio: false, cutout: '68%' }
     });
     
     confChart = new Chart(ctx2, {
@@ -185,15 +196,16 @@ function updateCharts(data) {
             labels: ['Confidence'],
             datasets: [{ data: [data.avg_confidence||0], backgroundColor: '#00e87a', borderRadius: 10 }]
         },
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } } }
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
     });
 }
 
 function updateCVEs(cves) {
-    document.getElementById('cve-count').textContent = cves.length;
-    document.getElementById('cve-tag').textContent = cves.length + ' CVEs';
+    var count = cves ? cves.length : 0;
+    document.getElementById('cve-count').textContent = count;
+    document.getElementById('cve-tag').textContent = count + ' CVEs';
     var list = document.getElementById('cve-list');
-    if (!cves.length) {
+    if (!count) {
         list.innerHTML = '<div class="empty">No CVEs found</div>';
         return;
     }
@@ -202,40 +214,41 @@ function updateCVEs(cves) {
         var cve = cves[i];
         var sc = cve.base_score || 0;
         var sev = sc >= 9 ? 'cve-score-crit' : (sc >= 7 ? 'cve-score-high' : '');
-        html += '<div class="cve-item"><span class="cve-id">' + cve.cve_id + '</span><span class="cve-score ' + sev + '">' + sc + '</span><span class="cve-desc">' + (cve.description || '').substring(0,60) + '</span></div>';
+        html += '<div class="cve-item"><span class="cve-id">' + esc(cve.cve_id) + '</span><span class="cve-score ' + sev + '">' + sc + '</span><span class="cve-desc">' + esc(cve.description || '').substring(0,60) + '</span></div>';
     }
     list.innerHTML = html;
 }
 
 function updateIOCs(iocs) {
-    document.getElementById('ioc-tag').textContent = iocs.length + ' IOCs';
+    var count = iocs ? iocs.length : 0;
+    document.getElementById('ioc-tag').textContent = count + ' IOCs';
     var tbody = document.getElementById('ioc-table');
-    if (!iocs.length) {
+    if (!count) {
         tbody.innerHTML = '<tr><td colspan="4" class="empty">No IOCs found</td></tr>';
         return;
     }
     var html = '';
     for (var i = 0; i < iocs.length; i++) {
         var ioc = iocs[i];
-        html += '<tr><td><span class="ioc-value">' + ioc.ioc + '</span></td><td><span class="type-chip">' + (ioc.ioc_type || 'unknown') + '</span></td><td><span class="badge badge-source">' + ioc.source + '</span></td><td>' + (ioc.confidence || 0) + '%</td></tr>';
+        html += '<tr><td><span class="ioc-value">' + esc(ioc.ioc) + '</span></td><td><span class="type-chip">' + esc(ioc.ioc_type || 'unknown') + '</span></td><td><span class="badge badge-source">' + esc(ioc.source) + '</span></td><td>' + (ioc.confidence || 0) + '%</td></tr>';
     }
     tbody.innerHTML = html;
 }
 
 function refreshAll() {
-    Promise.all([
+    Promise.allSettled([
         fetchJSON(API_BASE + '/kpis'),
         fetchJSON(API_BASE + '/iocs?limit=15'),
         fetchJSON(API_BASE + '/cve/openemr?limit=10')
     ]).then(function(results) {
-        var kpis = results[0];
-        var iocs = results[1];
-        var cves = results[2];
+        var kpis = results[0].status === 'fulfilled' ? results[0].value : {critical_count:0, high_count:0, total_today:0, medium_count:0, low_count:0, avg_confidence:0};
+        var iocs = results[1].status === 'fulfilled' ? results[1].value : [];
+        var cves = results[2].status === 'fulfilled' ? results[2].value.cves || [] : [];
         
         updateKPIs(kpis);
         updateCharts(kpis);
         updateIOCs(iocs);
-        updateCVEs(cves.cves || []);
+        updateCVEs(cves);
         
         document.getElementById('last-updated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
     }).catch(function(e) {
@@ -247,7 +260,7 @@ function runCollector() {
     fetch(API_BASE + '/collect', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            alert('Collector: ' + d.collected + ' IOCs');
+            alert('Collector: ' + d.collected + ' IOCs collected');
             refreshAll();
         })
         .catch(function(e) {
