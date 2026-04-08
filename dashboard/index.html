@@ -264,8 +264,19 @@ async function refreshAll() {
 }
 
 async function runCollector() {
-    try { const res = await fetch(API_BASE + '/collect', {method:'POST'}); const d = await res.json(); alert('Collector: ' + d.collected + ' IOCs'); refreshAll(); } catch(e) { alert('Error: '+e); }
+    try { 
+        const res = await fetch(API_BASE + '/collect', {method:'POST'}); 
+        const d = await res.json(); 
+        alert('Collector: ' + d.collected + ' IOCs'); 
+        refreshAll(); 
+    } catch(e) { 
+        alert('Error: '+e); 
+    }
 }
+
+// Make functions globally accessible
+window.refreshAll = refreshAll;
+window.runCollector = runCollector;
 
 document.addEventListener('DOMContentLoaded', function() { refreshAll(); setInterval(refreshAll, 30000); });
 </script>
