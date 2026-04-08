@@ -60,15 +60,17 @@ def root():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/dashboard", status_code=302)
 
-@app.get("/dashboard")
-@app.get("/dashboard.html")
+@app.get("/dashboard", tags=["Dashboard"])
+@app.get("/dashboard.html", include_in_schema=False)
 def dashboard():
     try:
         with open("dashboard/index.html", "r", encoding="utf-8") as f:
-            from fastapi.responses import HTMLResponse
-            return HTMLResponse(f.read())
+            content = f.read()
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=content, media_type="text/html")
     except Exception as e:
-        return f"Dashboard not found: {e}"
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=f"<h1>Dashboard not found: {e}</h1>", media_type="text/html")
 
 @app.get("/favicon.ico")
 def favicon():
