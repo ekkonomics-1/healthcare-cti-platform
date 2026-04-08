@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthcare CTI Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f1419;
+            color: #e7e9ea;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 20px 30px;
+            border-bottom: 1px solid #2f3336;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #00d4aa;
+        }
+        
+        .header .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #00d4aa;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .container {
+            padding: 20px 30px;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .kpi-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #2f3336;
+        }
+        
+        .kpi-card.critical {
+            border-left: 4px solid #ff4757;
+        }
+        
+        .kpi-card.high {
+            border-left: 4px solid #ffa502;
+        }
+        
+        .kpi-card.medium {
+            border-left: 4px solid #00d4aa;
+        }
+        
+        .kpi-label {
+            font-size: 13px;
+            color: #8b98a5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .kpi-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+        
+        .kpi-card.critical .kpi-value { color: #ff4757; }
+        .kpi-card.high .kpi-value { color: #ffa502; }
+        .kpi-card.medium .kpi-value { color: #00d4aa; }
+        
+        .chart-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #2f3336;
+        }
+        
+        .chart-card h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #8b98a5;
+        }
+        
+        .table-section {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #2f3336;
+        }
+        
+        .table-section h3 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #8b98a5;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px;
+            color: #8b98a5;
+            font-weight: 500;
+            font-size: 13px;
+            border-bottom: 1px solid #2f3336;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #2f3336;
+            font-size: 14px;
+        }
+        
+        tr:hover {
+            background: #252538;
+        }
+        
+        .label {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .label.critical {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+        
+        .label.high {
+            background: rgba(255, 165, 2, 0.2);
+            color: #ffa502;
+        }
+        
+        .label.medium {
+            background: rgba(0, 212, 170, 0.2);
+            color: #00d4aa;
+        }
+        
+        .label.low {
+            background: rgba(139, 152, 165, 0.2);
+            color: #8b98a5;
+        }
+        
+        .healthcare-badge {
+            background: rgba(0, 212, 170, 0.2);
+            color: #00d4aa;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        
+        .refresh-btn {
+            background: #00d4aa;
+            color: #0f1419;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .refresh-btn:hover {
+            background: #00f5bb;
+        }
+        
+        .search-box {
+            background: #0f1419;
+            border: 1px solid #2f3336;
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #e7e9ea;
+            width: 250px;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Healthcare CTI Dashboard</h1>
+        <div class="status">
+            <div class="status-dot"></div>
+            <span>Live</span>
+            <button class="refresh-btn" onclick="refreshData()">Refresh</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total IOCs Today</div>
+                <div class="kpi-value" id="total-today">-</div>
+            </div>
+            <div class="kpi-card critical">
+                <div class="kpi-label">Critical</div>
+                <div class="kpi-value" id="critical-count">-</div>
+            </div>
+            <div class="kpi-card high">
+                <div class="kpi-label">High</div>
+                <div class="kpi-value" id="high-count">-</div>
+            </div>
+            <div class="kpi-card medium">
+                <div class="kpi-label">Healthcare Related</div>
+                <div class="kpi-value" id="healthcare-count">-</div>
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <div class="chart-card">
+                <h3>Threat Distribution</h3>
+                <canvas id="threatChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Confidence Score</h3>
+                <canvas id="confidenceChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="table-section">
+            <h3>Recent IOCs</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>IOC</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Label</th>
+                        <th>Confidence</th>
+                        <th>First Seen</th>
+                    </tr>
+                </thead>
+                <tbody id="ioc-table">
+                    <tr>
+                        <td colspan="6" style="text-align: center;">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        let threatChart, confidenceChart;
+        
+        async function fetchKPIs() {
+            try {
+                const response = await fetch('/kpis');
+                const data = await response.json();
+                
+                document.getElementById('total-today').textContent = data.total_today;
+                document.getElementById('critical-count').textContent = data.critical_count;
+                document.getElementById('high-count').textContent = data.high_count;
+                document.getElementById('healthcare-count').textContent = data.healthcare_related;
+                
+                updateCharts(data);
+            } catch (error) {
+                console.error('Error fetching KPIs:', error);
+            }
+        }
+        
+        async function fetchIOCs() {
+            try {
+                const response = await fetch('/iocs?limit=20');
+                const iocs = await response.json();
+                
+                const tbody = document.getElementById('ioc-table');
+                if (iocs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No IOCs found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = iocs.map(ioc => `
+                    <tr>
+                        <td>
+                            ${ioc.ioc}
+                            ${ioc.is_healthcare ? '<span class="healthcare-badge">Healthcare</span>' : ''}
+                        </td>
+                        <td>${ioc.ioc_type}</td>
+                        <td>${ioc.source}</td>
+                        <td><span class="label ${ioc.label.toLowerCase()}">${ioc.label}</span></td>
+                        <td>${ioc.confidence}%</td>
+                        <td>${new Date(ioc.first_seen).toLocaleDateString()}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching IOCs:', error);
+            }
+        }
+        
+        function updateCharts(kpiData) {
+            const ctx1 = document.getElementById('threatChart').getContext('2d');
+            const ctx2 = document.getElementById('confidenceChart').getContext('2d');
+            
+            if (threatChart) threatChart.destroy();
+            if (confidenceChart) confidenceChart.destroy();
+            
+            threatChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: [kpiData.critical_count, kpiData.high_count, kpiData.medium_count, kpiData.low_count],
+                        backgroundColor: ['#ff4757', '#ffa502', '#00d4aa', '#8b98a5'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#8b98a5' }
+                        }
+                    }
+                }
+            });
+            
+            confidenceChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['Avg Confidence'],
+                    datasets: [{
+                        label: 'Score',
+                        data: [kpiData.avg_confidence],
+                        backgroundColor: '#00d4aa',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#8b98a5' },
+                            grid: { color: '#2f3336' }
+                        },
+                        x: {
+                            ticks: { color: '#8b98a5' },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+        
+        async function refreshData() {
+            await fetchKPIs();
+            await fetchIOCs();
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchKPIs();
+            fetchIOCs();
+            setInterval(refreshData, 30000);
+        });
+    </script>
+</body>
+</html>
