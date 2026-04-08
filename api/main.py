@@ -66,6 +66,10 @@ def dashboard():
     except Exception as e:
         return f"Dashboard not found: {e}"
 
+@app.get("/favicon.ico")
+def favicon():
+    return ""
+
 @app.post("/score", response_model=IOCResponse)
 def score_ioc(request: IOCRequest):
     if not model_loaded:

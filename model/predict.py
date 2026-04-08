@@ -28,7 +28,7 @@ def get_ioc_features(ioc_type, confidence, age_hours, is_healthcare, is_c2, sour
         is_healthcare,
         is_c2,
         source_count
-    ]])
+    ]], dtype=object)
 
 def predict(ioc, ioc_type="ip", confidence=50, age_hours=0, is_healthcare=0, is_c2=0, source_count=1):
     global model
