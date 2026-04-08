@@ -248,7 +248,7 @@ function updateHealthThreats(threats) {
     const tag = document.getElementById('health-tag'); tag.textContent = threats.length + ' threats';
     const list = document.getElementById('health-list');
     if(!threats.length) { list.innerHTML = '<div class=empty-state>No healthcare threats</div>'; return; }
-    list.innerHTML = threats.map(t=>'<tr><td><span class=ioc-value>'+t.ioc+'</span></td><td><span class=type-chip>'+t.type+'</span></td><td><span class=badge-source>'+t.source+'</span></td><td><span class="label-badge high">HIGH</span></td><td>'+t.confidence+'%</td></tr>').join('').replace(/tr>/g,'div class=cve-item>').replace(/<\//g,'</');
+    list.innerHTML = threats.map(t=>'<div class=cve-item><span class=ioc-value>'+t.ioc+'</span><span class=type-chip>'+(t.type||'unknown')+'</span><span class=badge-source>'+t.source+'</span><span class="label-badge high">HIGH</span><span>'+t.confidence+'%</span></div>').join('');
 }
 function updateMITRE(mitre) {
     const list = document.getElementById('mitre-list');
