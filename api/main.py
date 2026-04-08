@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 import sqlite3
@@ -14,6 +15,14 @@ from collector.fetch_iocs import collect_all_iocs
 from config.config import DATABASE_PATH, THREAT_LABELS, API_HOST, API_PORT
 
 app = FastAPI(title="Healthcare CTI Scoring API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 model_loaded = False
 
@@ -48,6 +57,14 @@ async def startup_event():
 @app.get("/")
 def root():
     return {"message": "Healthcare CTI Scoring API", "version": "1.0.0"}
+
+@app.get("/dashboard")
+def dashboard():
+    try:
+        with open("dashboard/index.html", "r") as f:
+            return f.read()
+    except Exception as e:
+        return f"Dashboard not found: {e}"
 
 @app.post("/score", response_model=IOCResponse)
 def score_ioc(request: IOCRequest):

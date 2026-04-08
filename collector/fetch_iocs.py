@@ -69,14 +69,17 @@ def fetch_feodo():
         if response.status_code == 200:
             data = response.json()
             iocs = []
-            for entry in data.get("feodo_ip_list", []):
-                iocs.append({
-                    "ioc": entry.get("ip_address"),
-                    "type": "ip",
-                    "source": "Feodo",
-                    "tags": ["c2", "botnet"],
-                    "confidence": 90
-                })
+            entries = data.get("feodo_ip_list", []) if isinstance(data, dict) else data
+            for entry in entries:
+                ip = entry.get("ip_address") if isinstance(entry, dict) else entry
+                if ip:
+                    iocs.append({
+                        "ioc": ip,
+                        "type": "ip",
+                        "source": "Feodo",
+                        "tags": ["c2", "botnet"],
+                        "confidence": 90
+                    })
             print(f"Fetched {len(iocs)} IOCs from Feodo")
             return iocs
     except Exception as e:
